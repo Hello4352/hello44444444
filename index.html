@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>자리 뽑기</title>
+  <style>
+    body { font-family: sans-serif; }
+    .layout {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 20px;
+    }
+    .section {
+      display: grid;
+      gap: 10px;
+    }
+    .left { grid-template-columns: repeat(2, 60px); grid-template-rows: repeat(4, 60px); }
+    .center, .right { grid-template-columns: repeat(2, 60px); grid-template-rows: repeat(5, 60px); }
+    .cell {
+      background: #f0f0f0;
+      border: 1px solid #aaa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    .clicked {
+      background: #ffcccc;
+    }
+    .board {
+      width: 400px;
+      margin: 0 auto;
+      height: 40px;
+      background: #d0d0d0;
+      text-align: center;
+      line-height: 40px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .inputs {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .unplaced-box {
+      max-width: 600px;
+      margin: 20px auto;
+      background: #ffeeee;
+      border: 1px dashed #ff9999;
+      padding: 10px;
+      font-size: 16px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h2 style="text-align:center;">자리 뽑기</h2>
+  <div class="board">(칠판)</div>
+
+  <div class="inputs">
+    시작 번호: <input type="number" id="startNum" value="1" />
+    끝 번호: <input type="number" id="endNum" value="28" />
+    제외할 번호(쉼표로): <input type="text" id="excludeNums" placeholder="예: 3,5,12" />
+    <button onclick="generateSeats()">자리 생성</button>
+  </div>
+
+  <div class="layout">
+    <div class="section left" id="leftSection"></div>
+    <div class="section center" id="centerSection"></div>
+    <div class="section right" id="rightSection"></div>
+  </div>
+
+  <div id="unplaced" class="unplaced-box" style="display:none;"></div>
+
+  <script>
+    const TOTAL_SEATS = 28;
+    const seatStates = Array(TOTAL_SEATS).fill(null); // 좌석 상태 저장 (X 또는 null)
+
+    function shuffle(array) {
+      for (let i = array.length -1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i +1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function createCell(seatIndex, value) {
+      const div = document.createElement("div");
+      div.className = "cell";
+      div.textContent = value;
+      div.dataset.seatIndex = seatIndex;
+
+      if (seatStates[seatIndex] === "X") {
+        div.textContent = "×";
+        div.classList.add("clicked");
+      }
+
+      div.addEventListener("click", () => {
+        const idx = parseInt(div.dataset.seatIndex);
+        if (seatStates[idx] === "X") {
+          seatStates[idx] = null;
+          div.textContent = value;
+          div.classList.remove("clicked");
+        } else {
+          seatStates[idx] = "X";
+          div.textContent = "×";
+          div.classList.add("clicked");
+        }
+      });
+
+      return div;
+    }
+
+    function generateSeats() {
+      const start = parseInt(document.getElementById("startNum").value);
+      const end = parseInt(document.getElementById("endNum").value);
+      const excludeRaw = document.getElementById("excludeNums").value;
+      const exclude = excludeRaw
+        .split(",")
+        .map(s => parseInt(s.trim()))
+        .filter(n => !isNaN(n));
+
+      const left = document.getElementById("leftSection");
+      const center = document.getElementById("centerSection");
+      const right = document.getElementById("rightSection");
+      const unplacedBox = document.getElementById("unplaced");
+      left.innerHTML = center.innerHTML = right.innerHTML = "";
+      unplacedBox.style.display = "none";
+      unplacedBox.innerHTML = "";
+
+      if (start >= end || start < 1 || end < 1) {
+        alert("시작과 끝 번호를 정확히 입력해주세요.");
+        return;
+      }
+
+      // 1. 시작~끝 번호 모두 배열 생성
+      let numbers = [];
+      for (let i = start; i <= end; i++) {
+        numbers.push(i);
+      }
+
+      // 2. 제외할 번호는 배열에서 제거
+      const filteredNumbers = numbers.filter(n => !exclude.includes(n));
+
+      // 3. 제외된 개수만큼 빈칸 생성
+      const blanksCount = numbers.length - filteredNumbers.length;
+      const blanks = Array(blanksCount).fill("");
+
+      // 4. 숫자 + 빈칸 합치기
+      const combined = filteredNumbers.concat(blanks);
+
+      // 5. 전체 완전 셔플 (숫자와 빈칸 골고루 섞임)
+      shuffle(combined);
+
+      // 6. X표시 좌석은 유지, 나머지에 combined 값을 채우기
+      let seatValues = Array(TOTAL_SEATS).fill("");
+      let combinedIndex = 0;
+      for(let i = 0; i < TOTAL_SEATS; i++) {
+        if(seatStates[i] !== "X" && combinedIndex < combined.length) {
+          seatValues[i] = combined[combinedIndex++];
+        }
+      }
+
+      // 7. 남는 번호 처리 (만약 combined에 숫자가 남았으면)
+      const leftover = combined.slice(combinedIndex).filter(v => v !== "");
+      if(leftover.length > 0) {
+        unplacedBox.style.display = "block";
+        unplacedBox.textContent = "배치되지 못한 번호: " + leftover.join(", ");
+      }
+
+      // 8. 화면에 좌석 출력
+      const sections = [
+        { el: left, count: 8 },
+        { el: center, count: 10 },
+        { el: right, count: 10 },
+      ];
+
+      let seatIndex = 0;
+      sections.forEach(section => {
+        for(let i=0; i < section.count; i++) {
+          section.el.appendChild(createCell(seatIndex, seatValues[seatIndex]));
+          seatIndex++;
+        }
+      });
+    }
+  </script>
+</body>
+</html>
